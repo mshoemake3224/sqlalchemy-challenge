@@ -12,7 +12,7 @@ from flask import Flask, jsonify
 #################################################
 # Database Setup
 #################################################
-engine = create_engine("sqlite:///hawaii.sqlite")
+engine = create_engine("sqlite:///Resources/hawaii.sqlite")
 
 # reflect an existing database into a new model
 Base = automap_base()
@@ -28,7 +28,7 @@ Measurement = Base.classes.measurement
 #################################################
 app = Flask(__name__)
 
-
+session = Session(engine)
 #################################################
 # Flask Routes
 #################################################
@@ -49,7 +49,6 @@ def welcome():
 @app.route("/api/v1.0/precipitation")
 def precipitation():
     # Create our session (link) from Python to the DB
-    session = Session(engine)
 
     # Convert the query results to a dictionary using date as the key and prcp as the value.
     # Return the JSON representation of your dictionary.
@@ -57,7 +56,6 @@ def precipitation():
     precipitation = session.query(Measurement.date, Measurement.prcp).\
         filter(Measurement.date >= prev_year).all()
 
-    session.close()
 
     return jsonify(precipitation)
 
@@ -65,7 +63,7 @@ def precipitation():
 @app.route("/api/v1.0/stations")
 def stations():
     # Create our session (link) from Python to the DB
-    stations = Session.query(Measurement.station, func.count(Measurement.station)).group_by(Measurement.station).\
+    stations = session.query(Measurement.station, func.count(Measurement.station)).group_by(Measurement.station).\
     order_by(func.count(Measurement.station).desc()).all()
 
     # Return a JSON list of stations from the dataset.
@@ -75,18 +73,22 @@ def stations():
 @app.route("/api/v1.0/tobs")
 def tobs():
     # Create our session (link) from Python to the DB
-    session = Session(engine)
-
+    prev_year = dt.date(2017,8,23) - dt.timedelta(days=365)   
     # Query the dates and temperature observations of the most active station for the last year of data.
     # Return a JSON list of temperature observations (TOBS) for the previous year.
-    active_station = Session.query(Measurement.tobs).\
+    active_station = session.query(Measurement.tobs).\
     filter(Measurement.station == 'USC00519281').\
     filter(Measurement.date >= prev_year).all()
 
-    session.close()
 
     return jsonify(active_station)
 
+@app.route("/api/v1.0/<start>/<end>")
+def dates(start, end):
+    results = session.query(func.max(Measurement.tobs), func.min(Measurement.tobs), func.avg(Measurement.tobs)).\
+    filter(Measurement.date >= start).filter(Measurement.date <= end).all()
 
+    return jsonify(results)
+    
 if __name__ == '__main__':
     app.run(debug=True)
